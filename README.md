@@ -15,9 +15,7 @@ potential warning flag.
 % vol.py pdblist --output-file=pdblist.txt [--renamed_only]
 ```
 
-<pre>
 --renamed_only tests if base name minus extensions is not matching on lowercase. If they are different the plugin will output.
-</pre>
 
 
 ## Installation
