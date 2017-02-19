@@ -6,7 +6,7 @@ pdblist is a plugin for the [Volatility Memory Forensics Platform](http://www.vo
 The PDB string may contain information about the build environment, such as username.
 
 Also, in some cases, the PDB file name is attempted hidden (overwritten after
-compile) but the debug section is still there. An empty PDF filename is a
+compile) but the debug section is still there. An empty PDB filename is a
 potensial warning flag.
 
 ## Usage
