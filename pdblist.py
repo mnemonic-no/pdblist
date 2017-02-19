@@ -75,6 +75,7 @@ datatypes = {
             }],
         }
 
+
 class _GUID(obj.CType):
     def __str__(self):
         def chrarray2str(a):
@@ -86,6 +87,14 @@ class _GUID(obj.CType):
                 chrarray2str(self.Data3),
                 chrarray2str(self.Data4),
                 chrarray2str(self.Data5))
+
+
+class PDBDataTypes(obj.ProfileModification):
+
+    def modification(self, profile):
+
+        profile.vtypes.update(datatypes)
+
 
 class PDBList(common.AbstractWindowsCommand):
     """Extract and show the PDB information in running services and processes."""
