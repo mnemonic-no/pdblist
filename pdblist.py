@@ -171,8 +171,6 @@ class PDBList(common.AbstractWindowsCommand):
 
         ps_list = win32.tasks.pslist(address_space)
 
-        #TODO PROCESS
-
         # USER modules
         for proc, mod in self._procs_and_modules(ps_list):
             proc_as = proc.get_process_address_space()
