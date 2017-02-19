@@ -41,7 +41,7 @@ IMAGE_DEBUG_TYPE_RESERVED10       = 10
 IMAGE_DEBUG_TYPE_CLSID            = 11
 
 datatypes = {
-        '_GUID'      : [ 0x10, {
+        '_PDBGUID'      : [ 0x10, {
             'Data1'         : [ 0x00, [ 'array', 4, ['unsigned char']]],
             'Data2'         : [ 0x04, [ 'array', 2, ['unsigned char']]],
             'Data3'         : [ 0x06, [ 'array', 2, ['unsigned char']]],
@@ -60,7 +60,7 @@ datatypes = {
             }],
         '_CV_INFO_PDB70' : [ None, {
             'CvSignature'   : [ 0x00, [ 'unsigned long' ]],
-            'Signature'     : [ 0x04, [ '_GUID' ]],
+            'Signature'     : [ 0x04, [ '_PDBGUID' ]],
             'Age'           : [ 0x14, [ 'unsigned long' ]],
             'PdbFileName'   : [ 0x18, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
             }],
@@ -76,10 +76,10 @@ datatypes = {
         }
 
 
-class _GUID(obj.CType):
+class _PDBGUID(obj.CType):
     def __str__(self):
         def chrarray2str(a):
-            c1 = ["{0:02x}".format(ord(x)) for x in a1]
+            c1 = ["{0:02x}".format(x.v()) for x in a]
             return "".join(c1)
         return "{0}-{1}-{2}-{3}-{4}".format(
                 chrarray2str(self.Data1),
@@ -94,6 +94,9 @@ class PDBDataTypes(obj.ProfileModification):
     def modification(self, profile):
 
         profile.vtypes.update(datatypes)
+        profile.object_classes.update({
+            '_PDBGUID': _PDBGUID
+            })
 
 
 class PDBList(common.AbstractWindowsCommand):
