@@ -3,7 +3,21 @@ pdblist
 
 pdblist is a plugin for the [Volatility Memory Forensics Platform](http://www.volatilityfoundation.org/) to extract and list the PDB info of running processes and services.
 
+The PDB string may contain information about the build environment, such as username.
+
+Also, in some cases, the PDB file name is attempted hidden (overwritten after
+compile) but the debug section is still there. An empty PDF filename is a
+potensial warning flag.
+
 ## Usage
+
+```bash
+% vol.py pdblist --output-file=pdblist.txt [--renamed_only]
+```
+
+<pre>
+--renamed_only tests if basename minus extensions is not matching on lowercase. If they are different the plugin will output.
+</pre>
 
 
 ## Installation
@@ -13,9 +27,6 @@ Copy the pdblist.py to your plugins directory or point volatility to your checko
 e.g.
 
 `% vol.py --plugins=/home/geir/src/pdblist pdblist`
-
-## Requirements
-
 
 ## Known issues
 
