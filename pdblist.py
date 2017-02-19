@@ -29,6 +29,8 @@ REFERENCES:
      https://msdn.microsoft.com/en-us/library/dd354925.aspx
 """
 
+import ntpath
+import os
 import volatility.debug as debug
 import volatility.obj as obj
 import volatility.plugins.common as common
@@ -55,22 +57,13 @@ datatypes = {
             'CvHeader'      : [ 0x00, [ '_CV_HEADER' ]],
             'Signature'     : [ 0x08, [ 'unsigned long' ]],
             'Age'           : [ 0x0c, [ 'unsigned long' ]],
-            'PdbFileName'   : [ 0x10, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
+            'PdbFileName'   : [ 0x10, [ 'String', {'length': 0x7FFF, 'encoding': 'utf8'} ]]
             }],
         '_CV_INFO_PDB70' : [ None, {
             'CvHeader'      : [ 0x00, [ '_CV_HEADER_SIMPLE' ]],
             'Signature'     : [ 0x04, [ '_PDBGUID' ]],
             'Age'           : [ 0x14, [ 'unsigned long' ]],
-            'PdbFileName'   : [ 0x18, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
-            }],
-        '_IMAGE_DEBUG_MISC' : [ None, {
-            'DataType'      : [ 0x00, [ 'unsigned long' ]],
-            'Length'        : [ 0x04, [ 'unsigned long' ]],
-            'Unicode'       : [ 0x08, [ 'unsigned short' ]],
-            'Reserved'      : [ 0x0a, [ 'array', 3, ['unsigned char']]],
-            'Data'          : [ 0x0d, [ 'String', {
-                'encoding': lambda x: "uft16" if x.Unicode else "utf8",
-                'length': lambda x: x.Length}]],
+            'PdbFileName'   : [ 0x18, [ 'String', {'length': 0x7FFF, 'encoding': 'utf8'} ]]
             }],
         }
 
@@ -99,10 +92,20 @@ class PDBDataTypes(obj.ProfileModification):
 
 
 class PDBList(common.AbstractWindowsCommand):
-    """Extract and show the PDB information in running services and processes."""
+    """Extract and show the PDB information in running services and processes.
+
+    Options:
+
+    --renamed_only   Only show files that appears renamed (differing basename)
+    """
 
     def __init__(self, config, *args, **kwargs):
         common.AbstractWindowsCommand.__init__(self, config, *args, **kwargs)
+
+        config.add_option("RENAMED_ONLY", short_option = 'r',
+                help = "Output only where file appears renamed from compiled file",
+                default = False,
+                action = "store_true")
 
     def logverbose(self, msg):
         if self._config.VERBOSE:
@@ -161,6 +164,16 @@ class PDBList(common.AbstractWindowsCommand):
                     vm = addr_space)
         return None
 
+    def _appears_renamed(self, mod, pdbinfo):
+
+        modbasename = ntpath.basename(str(mod.FullDllName))
+        modbase = os.path.splitext(modbasename)[0]
+        pdbbasename = ntpath.basename(str(pdbinfo.PdbFileName))
+        pdbbase = os.path.splitext(pdbbasename)[0]
+
+        return modbase.lower() != pdbbase.lower()
+
+
     def calculate(self):
 
         address_space = utils.load_as(self._config)
@@ -175,6 +188,9 @@ class PDBList(common.AbstractWindowsCommand):
             if dbg is None:
                 continue
 
+            if self._config.RENAMED_ONLY and not self._appears_renamed(mod, dbg):
+                continue
+
             yield (mod.DllBase.v(),
                    proc.UniqueProcessId,
                    proc.ImageFileName,
@@ -187,8 +203,13 @@ class PDBList(common.AbstractWindowsCommand):
 
         for mod in win32.modules.lsmod(address_space):
             dbg = self._get_debug_symbols(address_space, mod)
+
             if dbg is None:
                 continue
+
+            if self._config.RENAMED_ONLY and not self._appears_renamed(mod, dbg):
+                continue
+
             yield (mod.DllBase.v(),
                    "-",
                    "KERNEL",
@@ -198,6 +219,10 @@ class PDBList(common.AbstractWindowsCommand):
 
 
     def render_text(self, outfd, data):
+
+        if self._config.RENAMED_ONLY:
+            outfd.write("Renamed modules only!\n")
+
         self.table_header(outfd, [("Offset", "#018x"),
             ("PID", ">10"),
             ("Service", "<16"),
