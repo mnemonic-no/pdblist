@@ -56,13 +56,13 @@ datatypes = {
             'CvHeader'      : [ 0x00, [ '_CV_HEADER' ]],
             'Signature'     : [ 0x08, [ 'unsigned long' ]],
             'Age'           : [ 0x0c, [ 'unsigned long' ]],
-            'PdbFileName'   : [ 0x10, [ 'String', {'encoding': 'utf8'} ]]
+            'PdbFileName'   : [ 0x10, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
             }],
         '_CV_INFO_PDB70' : [ None, {
             'CvSignature'   : [ 0x00, [ 'unsigned long' ]],
             'Signature'     : [ 0x04, [ '_GUID' ]],
             'Age'           : [ 0x14, [ 'unsigned long' ]],
-            'PdbFileName'   : [ 0x18, [ 'String', {'encoding': 'utf8'} ]]
+            'PdbFileName'   : [ 0x18, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
             }],
         '_IMAGE_DEBUG_MISC' : [ None, {
             'DataType'      : [ 0x00, [ 'unsigned long' ]],
@@ -106,16 +106,104 @@ class PDBList(common.AbstractWindowsCommand):
         if self._config.VERBOSE:
             debug.info(msg)
 
+    def _procs_and_modules(self, ps_list):
+
+        for proc in ps_list:
+            for mod in proc.get_load_modules():
+                yield proc, mod
+
+    def _is_valid_debug_dir(self, debug_dir, image_base, addr_space):
+        if debug_dir == None:
+            self.logverbose("debug_dir is None")
+            return False
+
+        if debug_dir.AddressOfRawData == 0:
+            self.logverbose("debug_dir == 0")
+            return False
+
+	start_addr = image_base + debug_dir.AddressOfRawData
+        if not addr_space.is_valid_address(start_addr):
+            self.logverbose("Invalid address (data start): {0:#x}".format(start_addr))
+            return False
+
+	end_addr = image_base + debug_dir.AddressOfRawData + debug_dir.SizeOfData - 1
+        if not addr_space.is_valid_address(end_addr):
+            self.logverbose("Invalid addres (data end): {0:#x}".format(end_addr))
+            return False
+
+	return True
+
+    def _get_debug_symbols(self, addr_space, mod):
+
+        image_base = mod.DllBase
+        debug_dir = mod.get_debug_directory()
+
+        if not self._is_valid_debug_dir(debug_dir, image_base, addr_space):
+            self.logverbose("Invalid debugdir {0:#x} {1:#x}".format(
+                debug_dir.v(),
+                image_base.v()))
+            return None
+
+        debug_data =  debug_data = addr_space.zread(
+                image_base + debug_dir.AddressOfRawData,
+                debug_dir.SizeOfData)
+
+        if debug_data[:4] == 'RSDS':
+            return obj.Object("_CV_INFO_PDB70",
+                    offset = image_base + debug_dir.AddressOfRawData,
+                    vm = addr_space)
+
+        if debug_data[:4] == 'NB10':
+            return obj.Object("_CV_INFO_PDB20",
+                    offset = image_base + debug_dir.AddressOfRawData,
+                    vm = addr_space)
+
+        return None
+
     def calculate(self):
-        pass
+
+        address_space = utils.load_as(self._config)
+
+        ps_list = win32.tasks.pslist(address_space)
+
+        #TODO PROCESS
+
+        # USER modules
+        for proc, mod in self._procs_and_modules(ps_list):
+            proc_as = proc.get_process_address_space()
+            dbg = self._get_debug_symbols(proc_as, mod)
+
+            if dbg is None:
+                continue
+
+            yield (mod.DllBase.v(),
+                   proc.UniqueProcessId,
+                   proc.ImageFileName,
+                   mod.FullDllName,
+                   dbg.PdbFileName)
+
+
+        # KERNEL modules
+
+        for mod in win32.modules.lsmod(address_space):
+            dbg = self._get_debug_symbols(address_space, mod)
+            if dbg is None:
+                continue
+            yield (mod.DllBase.v(),
+                   "-",
+                   "KERNEL",
+                   mod.FullDllName,
+                   dbg.PdbFileName)
+
 
     def render_text(self, outfd, data):
         self.table_header(outfd, [("Offset", "#018x"),
             ("PID", ">10"),
-            ("Service", "<64"),
-            ("Module", "<64"),
-            ("USR", "<3"),
-            ("Type", "<5"),
+            ("Service", "<16"),
+            ("Module", "<48"),
             ("Value", "")])
 
+        for offset, pid, service, module, value in data:
+            self.table_row(outfd,
+                    offset, pid, service, module, value)
 
