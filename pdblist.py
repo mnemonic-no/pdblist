@@ -49,8 +49,11 @@ datatypes = {
             'Data5'         : [ 0x10, [ 'array', 6, ['unsigned char']]],
             }],
         '_CV_HEADER' : [ 0x8, {
-            'Signature'     : [ 0x00, [ 'unsigned long' ]],
+            'Signature'     : [ 0x00, [ 'String', {'length': 4}]],
             'Offset'        : [ 0x04, [ 'unsigned long' ]],
+            }],
+        '_CV_HEADER_SIMPLE': [ 0x04, {
+            'Signature'     : [ 0x00, [ 'String', {'length': 4}]]
             }],
         '_CV_INFO_PDB20' : [ None, {
             'CvHeader'      : [ 0x00, [ '_CV_HEADER' ]],
@@ -59,7 +62,7 @@ datatypes = {
             'PdbFileName'   : [ 0x10, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
             }],
         '_CV_INFO_PDB70' : [ None, {
-            'CvSignature'   : [ 0x00, [ 'unsigned long' ]],
+            'CvHeader'      : [ 0x00, [ '_CV_HEADER_SIMPLE' ]],
             'Signature'     : [ 0x04, [ '_PDBGUID' ]],
             'Age'           : [ 0x14, [ 'unsigned long' ]],
             'PdbFileName'   : [ 0x18, [ 'String', {'length': 0x7c, 'encoding': 'utf8'} ]]
@@ -160,7 +163,6 @@ class PDBList(common.AbstractWindowsCommand):
             return obj.Object("_CV_INFO_PDB20",
                     offset = image_base + debug_dir.AddressOfRawData,
                     vm = addr_space)
-
         return None
 
     def calculate(self):
@@ -183,6 +185,7 @@ class PDBList(common.AbstractWindowsCommand):
                    proc.UniqueProcessId,
                    proc.ImageFileName,
                    mod.FullDllName,
+                   dbg.CvHeader.Signature,
                    dbg.PdbFileName)
 
 
@@ -196,6 +199,7 @@ class PDBList(common.AbstractWindowsCommand):
                    "-",
                    "KERNEL",
                    mod.FullDllName,
+                   dbg.CvHeader.Signature,
                    dbg.PdbFileName)
 
 
@@ -204,9 +208,10 @@ class PDBList(common.AbstractWindowsCommand):
             ("PID", ">10"),
             ("Service", "<16"),
             ("Module", "<48"),
+            ("Sig", "4"),
             ("Value", "")])
 
-        for offset, pid, service, module, value in data:
+        for offset, pid, service, module, signature, value in data:
             self.table_row(outfd,
-                    offset, pid, service, module, value)
+                    offset, pid, service, module, signature, value)
 
