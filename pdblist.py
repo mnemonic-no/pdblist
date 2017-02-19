@@ -19,6 +19,14 @@
 @author:        Geir Skjotskift
 @license:       ISC License
 @contact:       opensource@mnemonic.no
+
+REFERENCES:
+1. Starodumov, O (2010). Matching debug information.
+   Retrieved from:
+     http://www.debuginfo.com/articles/debuginfomatch.html
+2. MSDN Microsoft (2009). GUID Data Type
+   Retrieved from:
+     https://msdn.microsoft.com/en-us/library/dd354925.aspx
 """
 
 import volatility.debug as debug
