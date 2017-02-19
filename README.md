@@ -7,7 +7,7 @@ The PDB string may contain information about the build environment, such as user
 
 Also, in some cases, the PDB file name is attempted hidden (overwritten after
 compile) but the debug section is still there. An empty PDB filename is a
-potensial warning flag.
+potential warning flag.
 
 ## Usage
 
@@ -16,7 +16,7 @@ potensial warning flag.
 ```
 
 <pre>
---renamed_only tests if basename minus extensions is not matching on lowercase. If they are different the plugin will output.
+--renamed_only tests if base name minus extensions is not matching on lowercase. If they are different the plugin will output.
 </pre>
 
 
