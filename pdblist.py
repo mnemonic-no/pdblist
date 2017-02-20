@@ -148,22 +148,22 @@ class PDBList(common.AbstractWindowsCommand):
             self.logverbose("Invalid debugdir {0:#x} {1:#x}".format(
                 debug_dir.v(),
                 image_base.v()))
-            return None
+            return 0, None
 
         debug_data =  debug_data = addr_space.zread(
                 image_base + debug_dir.AddressOfRawData,
                 debug_dir.SizeOfData)
 
         if debug_data[:4] == 'RSDS':
-            return obj.Object("_CV_INFO_PDB70",
+            return debug_dir.SizeOfData - 0x18, obj.Object("_CV_INFO_PDB70",
                     offset = image_base + debug_dir.AddressOfRawData,
                     vm = addr_space)
 
         if debug_data[:4] == 'NB10':
-            return obj.Object("_CV_INFO_PDB20",
+            return debug_dir.SizeOfData - 0x10, obj.Object("_CV_INFO_PDB20",
                     offset = image_base + debug_dir.AddressOfRawData,
                     vm = addr_space)
-        return None
+        return 0, None
 
     def _appears_renamed(self, mod, pdbinfo):
 
@@ -174,6 +174,10 @@ class PDBList(common.AbstractWindowsCommand):
 
         return modbase.lower() != pdbbase.lower()
 
+    def _pdbfilename_tampered_with(self, pdbfilename, pdbfilenamesize):
+
+        pdbfilename = unicode(pdbfilename)
+        return len(bytearray(pdbfilename, "utf8"))+1 != pdbfilenamesize
 
     def calculate(self):
 
@@ -184,12 +188,15 @@ class PDBList(common.AbstractWindowsCommand):
         # USER modules
         for proc, mod in self._procs_and_modules(ps_list):
             proc_as = proc.get_process_address_space()
-            dbg = self._get_debug_symbols(proc_as, mod)
+            pdbfilename_size, dbg = self._get_debug_symbols(proc_as, mod)
 
             if dbg is None:
                 continue
 
-            if self._config.RENAMED_ONLY and not self._appears_renamed(mod, dbg):
+            renamed = self._appears_renamed(mod, dbg)
+            tampered = self._pdbfilename_tampered_with(dbg.PdbFileName, pdbfilename_size)
+
+            if self._config.RENAMED_ONLY and not renamed and not tampered:
                 continue
 
             yield (mod.DllBase.v(),
@@ -198,18 +205,22 @@ class PDBList(common.AbstractWindowsCommand):
                    mod.FullDllName,
                    dbg.CvHeader.Signature,
                    mod.get_debug_directory().TimeDateStamp,
-                   dbg.PdbFileName)
+                   dbg.PdbFileName,
+                   tampered,)
 
 
         # KERNEL modules
 
         for mod in win32.modules.lsmod(address_space):
-            dbg = self._get_debug_symbols(address_space, mod)
+            pdbfilename_size, dbg = self._get_debug_symbols(address_space, mod)
 
             if dbg is None:
                 continue
 
-            if self._config.RENAMED_ONLY and not self._appears_renamed(mod, dbg):
+            renamed = self._appears_renamed(mod, dbg)
+            tampered = self._pdbfilename_tampered_with(dbg.PdbFileName, pdbfilename_size)
+
+            if self._config.RENAMED_ONLY and not renamed and not tampered:
                 continue
 
             yield (mod.DllBase.v(),
@@ -218,7 +229,8 @@ class PDBList(common.AbstractWindowsCommand):
                    mod.FullDllName,
                    dbg.CvHeader.Signature,
                    mod.get_debug_directory().TimeDateStamp,
-                   dbg.PdbFileName)
+                   dbg.PdbFileName,
+                   tampered)
 
 
     def render_text(self, outfd, data):
@@ -234,8 +246,12 @@ class PDBList(common.AbstractWindowsCommand):
             ("Time", "10"),
             ("Value", "")])
 
-        for offset, pid, service, module, signature, timestamp, value in data:
+        for offset, pid, service, module, signature, timestamp, value, tampered in data:
+
             self.table_row(outfd,
                     offset, pid, service, module,
                     signature, str(datetime.date.fromtimestamp(timestamp)), value)
 
+            if tampered:
+                outfd.write("WARNING {0:018x} PID: {1} ({2}) Size of debug directory does not match with PdbFileName string length. The value is possibly tampered with.\n".format(
+                    offset, pid, module))
