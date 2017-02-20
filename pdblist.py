@@ -29,6 +29,7 @@ REFERENCES:
      https://msdn.microsoft.com/en-us/library/dd354925.aspx
 """
 
+import datetime
 import ntpath
 import os
 import volatility.debug as debug
@@ -44,7 +45,7 @@ datatypes = {
             'Data2'         : [ 0x04, [ 'array', 2, ['unsigned char']]],
             'Data3'         : [ 0x06, [ 'array', 2, ['unsigned char']]],
             'Data4'         : [ 0x08, [ 'array', 2, ['unsigned char']]],
-            'Data5'         : [ 0x10, [ 'array', 6, ['unsigned char']]],
+            'Data5'         : [ 0x0a, [ 'array', 6, ['unsigned char']]],
             }],
         '_CV_HEADER' : [ 0x8, {
             'Signature'     : [ 0x00, [ 'String', {'length': 4}]],
@@ -126,17 +127,17 @@ class PDBList(common.AbstractWindowsCommand):
             self.logverbose("debug_dir == 0")
             return False
 
-	start_addr = image_base + debug_dir.AddressOfRawData
+        start_addr = image_base + debug_dir.AddressOfRawData
         if not addr_space.is_valid_address(start_addr):
             self.logverbose("Invalid address (data start): {0:#x}".format(start_addr))
             return False
 
-	end_addr = image_base + debug_dir.AddressOfRawData + debug_dir.SizeOfData - 1
+        end_addr = image_base + debug_dir.AddressOfRawData + debug_dir.SizeOfData - 1
         if not addr_space.is_valid_address(end_addr):
             self.logverbose("Invalid addres (data end): {0:#x}".format(end_addr))
             return False
 
-	return True
+        return True
 
     def _get_debug_symbols(self, addr_space, mod):
 
@@ -196,6 +197,7 @@ class PDBList(common.AbstractWindowsCommand):
                    proc.ImageFileName,
                    mod.FullDllName,
                    dbg.CvHeader.Signature,
+                   mod.get_debug_directory().TimeDateStamp,
                    dbg.PdbFileName)
 
 
@@ -215,6 +217,7 @@ class PDBList(common.AbstractWindowsCommand):
                    "KERNEL",
                    mod.FullDllName,
                    dbg.CvHeader.Signature,
+                   mod.get_debug_directory().TimeDateStamp,
                    dbg.PdbFileName)
 
 
@@ -228,9 +231,11 @@ class PDBList(common.AbstractWindowsCommand):
             ("Service", "<16"),
             ("Module", "<48"),
             ("Sig", "4"),
+            ("Time", "10"),
             ("Value", "")])
 
-        for offset, pid, service, module, signature, value in data:
+        for offset, pid, service, module, signature, timestamp, value in data:
             self.table_row(outfd,
-                    offset, pid, service, module, signature, value)
+                    offset, pid, service, module,
+                    signature, str(datetime.date.fromtimestamp(timestamp)), value)
 
