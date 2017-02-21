@@ -68,6 +68,10 @@ datatypes = {
             }],
         }
 
+codeview_signature = {
+        'RSDS': "_CV_INFO_PDB70",
+        'NB10': "_CV_INFO_PDB20",
+        }
 
 class _PDBGUID(obj.CType):
     def __str__(self):
@@ -150,20 +154,22 @@ class PDBList(common.AbstractWindowsCommand):
                 image_base.v()))
             return 0, None
 
-        debug_data =  debug_data = addr_space.zread(
-                image_base + debug_dir.AddressOfRawData,
-                debug_dir.SizeOfData)
+        debug_dir_offset = image_base + debug_dir.AddressOfRawData
 
-        if debug_data[:4] == 'RSDS':
-            return debug_dir.SizeOfData - 0x18, obj.Object("_CV_INFO_PDB70",
-                    offset = image_base + debug_dir.AddressOfRawData,
-                    vm = addr_space)
+        cv_header = obj.Object("_CV_HEADER_SIMPLE", offset = debug_dir_offset, vm = addr_space)
 
-        if debug_data[:4] == 'NB10':
-            return debug_dir.SizeOfData - 0x10, obj.Object("_CV_INFO_PDB20",
-                    offset = image_base + debug_dir.AddressOfRawData,
-                    vm = addr_space)
-        return 0, None
+        theType = codeview_signature.get(cv_header.Signature.v(), None)
+
+        if not theType:
+            self.logverbose("Unknown codeview signature: {0}".format(cv_header.Signature))
+            return 0, None
+
+        pdb_file_name_data_offset = offset_in_type(theType, "PdbFileName", addr_space)
+        pdb_file_name_length = debug_dir.SizeOfData - pdb_file_name_data_offset
+
+        codeview_data = obj.Object(theType, offset = debug_dir_offset, vm = addr_space)
+
+        return pdb_file_name_length, codeview_data
 
     def _appears_renamed(self, mod, pdbinfo):
 
@@ -253,5 +259,11 @@ class PDBList(common.AbstractWindowsCommand):
                     signature, str(datetime.date.fromtimestamp(timestamp)), value)
 
             if tampered:
-                outfd.write("WARNING {0:018x} PID: {1} ({2}) Size of debug directory does not match with PdbFileName string length. The value is possibly tampered with.\n".format(
+                outfd.write("WARNING {0:#018x} PID: {1} ({2}) Size of debug directory does not match with PdbFileName string length. The value is possibly tampered with.\n".format(
                     offset, pid, module))
+
+
+def offset_in_type(theType, attribute, vm):
+    """Return the relative offset of an attribute within a vtype"""
+
+    return vm.profile.vtypes[theType][1][attribute][0]
