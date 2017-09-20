@@ -123,22 +123,21 @@ class PDBList(common.AbstractWindowsCommand):
                 yield proc, mod
 
     def _is_valid_debug_dir(self, debug_dir, image_base, addr_space):
+
         if debug_dir == None:
-            self.logverbose("debug_dir is None")
             return False
 
         if debug_dir.AddressOfRawData == 0:
-            self.logverbose("debug_dir == 0")
             return False
 
         start_addr = image_base + debug_dir.AddressOfRawData
         if not addr_space.is_valid_address(start_addr):
-            self.logverbose("Invalid address (data start): {0:#x}".format(start_addr))
+            self.logverbose("{0:#x} : Invalid address (data start): {1:#x}".format(image_base, start_addr))
             return False
 
         end_addr = image_base + debug_dir.AddressOfRawData + debug_dir.SizeOfData - 1
         if not addr_space.is_valid_address(end_addr):
-            self.logverbose("Invalid addres (data end): {0:#x}".format(end_addr))
+            self.logverbose("{0:#x} : Invalid address (data end): {1:#x}".format(image_base, end_addr))
             return False
 
         return True
@@ -149,9 +148,6 @@ class PDBList(common.AbstractWindowsCommand):
         debug_dir = mod.get_debug_directory()
 
         if not self._is_valid_debug_dir(debug_dir, image_base, addr_space):
-            self.logverbose("Invalid debugdir {0:#x} {1:#x}".format(
-                debug_dir.v(),
-                image_base.v()))
             return 0, None
 
         debug_dir_offset = image_base + debug_dir.AddressOfRawData
